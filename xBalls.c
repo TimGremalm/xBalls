@@ -16,12 +16,28 @@
 
 #include "ssid_config.h"
 
+#include "ws2812_i2s/ws2812_i2s.h"
+
 #define PORT 5568
 #define SACNLENGTH 638
+const uint32_t led_number = 24;
+
+static ws2812_pixel_t getColor(char red, char green, char blue) {
+	ws2812_pixel_t color = {0, 0, 0};
+	color.red = red;
+	color.green = green;
+	color.blue = blue;
+	return color;
+}
 
 void task(void *pvParameters) {
+	printf("Init xBalls WS2812 LEDs.\r\n");
+	ws2812_pixel_t pixels[led_number];
+	memset(pixels, 0, sizeof(ws2812_pixel_t) * led_number);
+	ws2812_i2s_init(led_number);
+
 	printf("Open server in 10 seconds.\r\n");
-	vTaskDelay(10000);
+	vTaskDelay(1000);
 
 	struct netconn *conn;
 	err_t err;
@@ -59,12 +75,23 @@ void task(void *pvParameters) {
 
 		netbuf_data(inbuf, (void**)&buf, &buflen);
 		if (buflen == SACNLENGTH) {
-			printf("Received Len %d\n", buflen);
+			//printf("Received Len %d\n", buflen);
 			//printf("%s\n", buf);
 
-			int channel1;
-			channel1 = buf[126];
-			printf("Value %d\n\n", channel1);
+			int channelOffset = 126;
+			for (int i = 0; i < led_number; i++) {
+				char red = buf[i * 3 + channelOffset];
+				char green = buf[i * 3 + channelOffset + 1];
+				char blue = buf[i * 3 + channelOffset + 2];
+
+				pixels[i] = getColor(red, green, blue);
+			}
+
+			ws2812_i2s_update(pixels);
+
+			for (int i = 0; i < 1; i++) {
+				printf("LED %d - %d %d %d\n", i, pixels[i].red, pixels[i].green, pixels[i].blue);
+			}
 		}
 
 		netbuf_delete(inbuf);
